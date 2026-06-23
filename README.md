@@ -13,35 +13,40 @@ preview the layout as SVG, and (Phase 2) stream the cut paths over USB.
 ## Workflow
 
 ```bash
-# 1. Generate a blank fill-in template
-python -m autocut template -o pieces.xlsx
+# 1. Generate a blank order sheet
+python -m autocut template -o order.xlsx
 
-# 2. Fill in the rows (name / width mm / height mm / qty / group / note),
+# 2. Fill in the conditions (top block) and the pieces (table below),
 #    collect everyone's pieces into one sheet, and send it back.
 
 # 3. Pack the pieces and preview the layout
-python -m autocut pack pieces.xlsx -o preview.svg
+python -m autocut pack order.xlsx -o preview.svg
 
 # 4. (Phase 2) Generate GP-GL cut paths + offline self-check
-python -m autocut gpgl pieces.xlsx -o cut.gpgl
+python -m autocut gpgl order.xlsx -o cut.gpgl
 ```
 
-`pack` options:
+Sheet/layout settings come from the order sheet; CLI flags
+(`--sheet-width`, `--sheet-length`, `--gap`, `--no-rotate`) override per run.
 
-| flag | default | meaning |
-|------|---------|---------|
-| `--sheet-width` | `350` | usable material width in mm (CE5000-40-CRP ≈ 350) |
-| `--sheet-length` | roll | sheet length in mm; omit for a roll (auto length) |
-| `--gap` | `2.0` | spacing between pieces in mm (blade offset / precision) |
-| `--no-rotate` | off | disallow 90° rotation of pieces |
+## Order sheet format
 
-## Input format
+One `.xlsx` is the whole order: cut conditions on top, pieces below. Saving the
+filled sheet records exactly what was cut and with what settings, so the next
+similar job starts from a copy.
 
-The template has these columns (the reader also accepts common variants such as
-`部品名/短辺/長辺/必要数`, auto-detects the header row, and strips furigana):
+**Condition header** (label / value rows): order name, date, material, blade,
+sheet width/length, piece gap, 90° rotation, speed, force, blade offset, passes.
+
+**Pieces table** — the reader auto-detects this header row, accepts common
+variants such as `部品名/短辺/長辺/必要数`, and strips furigana:
 
 | 名前 | 幅mm | 高さmm | 数量 | グループ | メモ |
 |------|------|--------|------|----------|------|
+
+In v1 the cut conditions are reported by `gpgl` so they can be entered on the
+cutter panel (`PRIORITY=MANUAL`); driving them via GP-GL command codes
+(`PRIORITY=COMD`) is a later step.
 
 ## Status
 

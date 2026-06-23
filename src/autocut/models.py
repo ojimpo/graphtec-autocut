@@ -40,6 +40,30 @@ class Placement:
 
 
 @dataclass
+class Conditions:
+    """Per-order cut conditions, read from the order sheet's header block.
+
+    Numeric fields are None when left blank. Cut conditions (speed/force/offset/
+    passes/blade) are typically entered on the cutter's panel (PRIORITY=MANUAL)
+    in v1; the program records them so each saved order sheet documents exactly
+    what was cut and with what settings.
+    """
+
+    order_name: str = ""
+    date: str = ""
+    material: str = ""
+    blade: str = ""
+    sheet_width: float | None = None
+    sheet_length: float | None = None
+    gap: float | None = None
+    allow_rotate: bool | None = None
+    speed: float | None = None     # cm/s
+    force: float | None = None     # cutter force units
+    offset: float | None = None    # blade offset, mm
+    passes: int | None = None
+
+
+@dataclass
 class Sheet:
     """Material sheet. `length` is None for a roll (length auto-computed)."""
 

@@ -17,7 +17,7 @@ import re
 import zipfile
 from xml.etree import ElementTree as ET
 
-from .models import Piece
+from .models import Conditions, Piece
 
 _NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
 
@@ -31,6 +31,27 @@ _ALIASES = {
     "group": ["const", "部位", "グループ", "group"],
     "shape": ["形状", "shape"],
 }
+
+
+# Condition labels in the order-sheet header block (above the pieces table).
+# Matched on the row's label cell only, so collisions with piece columns
+# (e.g. 幅mm) are avoided by parsing the header block separately.
+_COND_ALIASES = {
+    "order_name": ["オーダー名", "指示書名", "order"],
+    "date": ["日付", "date"],
+    "material": ["材料", "材質", "material"],
+    "blade": ["刃種", "blade"],  # not bare "刃": it would also match 刃圧 (force)
+    "sheet_width": ["シート幅", "sheetwidth"],
+    "sheet_length": ["シート長さ", "シート長", "sheetlength"],
+    "gap": ["ピース間隔", "間隔", "gap"],
+    "allow_rotate": ["90度回転許可", "回転許可", "回転", "rotate"],
+    "speed": ["速度", "speed"],
+    "force": ["刃圧", "圧", "force", "pressure"],
+    "offset": ["オフセット", "offset"],
+    "passes": ["パス数", "回数", "passes"],
+}
+
+_NUMERIC_COND = {"sheet_width", "sheet_length", "gap", "speed", "force", "offset"}
 
 
 def _norm(s: str) -> str:
@@ -138,18 +159,67 @@ def _find_header(rows: list[dict[int, object]]) -> tuple[int, dict[str, int]]:
     return best
 
 
-def read_pieces(path: str, *, expand: bool = False) -> list[Piece]:
-    """Read pieces from `path` (.xlsx).
+def _match_cond(label: str) -> str | None:
+    n = _norm(label)
+    if not n:
+        return None
+    for field, aliases in _COND_ALIASES.items():
+        for a in aliases:
+            an = _norm(a)
+            if n == an or an in n:
+                return field
+    return None
 
-    expand=False returns one Piece per row (with .qty set).
-    expand=True returns qty copies, each with .inst = 1..qty.
-    """
-    with zipfile.ZipFile(path) as z:
-        rows = _grid(z)
-    hdr_i, col = _find_header(rows)
 
+def _to_bool(v) -> bool:
+    return str(v).strip().lower() in (
+        "はい", "yes", "true", "1", "○", "y", "可", "許可")
+
+
+def _parse_conditions(rows: list[dict[int, object]]) -> Conditions:
+    """Parse the key/value header block above the pieces table."""
+    c = Conditions()
+    for cells in rows:
+        items = sorted(cells.items())
+        label = None
+        label_col = None
+        for ci, val in items:
+            if isinstance(val, str) and val.strip():
+                label, label_col = val, ci
+                break
+        if label is None:
+            continue
+        field = _match_cond(label)
+        if field is None:
+            continue
+        value = None
+        for ci, val in items:
+            if ci > label_col and val not in (None, ""):
+                value = val
+                break
+        if value is None:
+            continue
+        if field == "allow_rotate":
+            c.allow_rotate = _to_bool(value)
+        elif field == "passes":
+            try:
+                c.passes = int(float(value))
+            except (TypeError, ValueError):
+                pass
+        elif field in _NUMERIC_COND:
+            try:
+                setattr(c, field, float(value))
+            except (TypeError, ValueError):
+                pass
+        else:
+            setattr(c, field, str(value).strip())
+    return c
+
+
+def _parse_pieces(rows: list[dict[int, object]], col: dict[str, int],
+                  expand: bool) -> list[Piece]:
     pieces: list[Piece] = []
-    for cells in rows[hdr_i + 1:]:
+    for cells in rows:
         name = cells.get(col["name"])
         w = cells.get(col["w"])
         h = cells.get(col["h"])
@@ -179,3 +249,22 @@ def read_pieces(path: str, *, expand: bool = False) -> list[Piece]:
         for i in range(p.qty):
             out.append(Piece(p.name, p.w, p.h, 1, p.group, p.shape, inst=i + 1))
     return out
+
+
+def read_order(path: str, *, expand: bool = False) -> tuple[Conditions, list[Piece]]:
+    """Read a full order sheet: (cut conditions header, pieces)."""
+    with zipfile.ZipFile(path) as z:
+        rows = _grid(z)
+    hdr_i, col = _find_header(rows)
+    conditions = _parse_conditions(rows[:hdr_i])
+    pieces = _parse_pieces(rows[hdr_i + 1:], col, expand)
+    return conditions, pieces
+
+
+def read_pieces(path: str, *, expand: bool = False) -> list[Piece]:
+    """Read just the pieces from `path` (.xlsx).
+
+    expand=False returns one Piece per row (with .qty set).
+    expand=True returns qty copies, each with .inst = 1..qty.
+    """
+    return read_order(path, expand=expand)[1]

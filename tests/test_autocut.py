@@ -6,7 +6,7 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from autocut.excel_io import read_pieces
+from autocut.excel_io import read_order, read_pieces
 from autocut.gpgl import GpglOptions, generate, parse_polylines, verify_roundtrip
 from autocut.layout import pack
 from autocut.models import Piece, Sheet
@@ -32,6 +32,47 @@ class ExcelRoundTrip(unittest.TestCase):
             self.assertIn("Sample Part A", names)
             a = next(p for p in pieces if p.name == "Sample Part A")
             self.assertEqual((a.w, a.h, a.qty), (10.0, 10.0, 2))
+
+
+class OrderSheet(unittest.TestCase):
+    def test_conditions_and_pieces(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "order.xlsx")
+            write_template(path)
+            cond, pieces = read_order(path, expand=True)
+            # defaults baked into the template header block
+            self.assertEqual(cond.sheet_width, 350.0)
+            self.assertEqual(cond.gap, 2.0)
+            self.assertEqual(cond.offset, 0.25)
+            self.assertEqual(cond.passes, 1)
+            self.assertTrue(cond.allow_rotate)
+            self.assertIsNone(cond.sheet_length)  # blank => roll
+            # pieces still read correctly from below the header block
+            self.assertIn("Sample Part A", {p.name for p in pieces})
+
+    def test_blade_and_force_not_confused(self):
+        from autocut.xlsx_write import write_xlsx
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "order.xlsx")
+            write_xlsx(path, [
+                ["材料", "PET"], ["刃種", "標準刃"], ["刃圧", 10],
+                ["速度cm/s", 30], [],
+                ["名前", "幅mm", "高さmm", "数量"], ["x", 10, 10, 1],
+            ])
+            cond, _ = read_order(path)
+            self.assertEqual(cond.blade, "標準刃")   # not the force value
+            self.assertEqual(cond.force, 10.0)
+            self.assertEqual(cond.speed, 30.0)
+
+    def test_header_block_does_not_pollute_pieces(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "order.xlsx")
+            write_template(path)
+            pieces = read_pieces(path)
+            names = {p.name for p in pieces}
+            # condition labels must not be misread as pieces
+            self.assertNotIn("シート幅mm", names)
+            self.assertNotIn("速度cm/s", names)
 
 
 class LayoutValid(unittest.TestCase):
