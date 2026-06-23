@@ -1,5 +1,7 @@
 # graphtec-autocut
 
+[![CI](https://github.com/ojimpo/graphtec-autocut/actions/workflows/ci.yml/badge.svg)](https://github.com/ojimpo/graphtec-autocut/actions/workflows/ci.yml)
+
 Auto-layout and cut rectangular pieces on a Graphtec **Craft ROBO Pro
 (CE5000-40-CRP)** cutter from a simple Excel sheet.
 
