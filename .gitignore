@@ -1,0 +1,19 @@
+# Internal project notes (machine names / process context) — keep out of public repo
+CLAUDE.md
+
+# Generated previews and template outputs (may contain real part names)
+out/
+
+# Spreadsheets are inputs/outputs with potentially confidential data — never commit
+*.xlsx
+
+# SVG previews are generated artifacts
+*.svg
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
