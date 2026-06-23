@@ -10,7 +10,7 @@ preview the layout as SVG, and (Phase 2) stream the cut paths over USB.
 
 ## Workflow
 
-```
+```bash
 # 1. Generate a blank fill-in template
 python -m autocut template -o pieces.xlsx
 
@@ -19,6 +19,9 @@ python -m autocut template -o pieces.xlsx
 
 # 3. Pack the pieces and preview the layout
 python -m autocut pack pieces.xlsx -o preview.svg
+
+# 4. (Phase 2) Generate GP-GL cut paths + offline self-check
+python -m autocut gpgl pieces.xlsx -o cut.gpgl
 ```
 
 `pack` options:
@@ -45,13 +48,18 @@ The template has these columns (the reader also accepts common variants such as
   - **No third-party dependencies** — pure Python standard library
     (`.xlsx` is read/written by parsing the underlying zip+XML), so it runs on a
     minimal Python without pip.
-- **Phase 2 — GP-GL cut-path generation + USB send: planned.**
+- **Phase 2 — GP-GL cut-path generation: working (offline).**
+  `gpgl` emits `M`/`D` cut paths and self-verifies by parsing the output back to
+  mm and comparing against the layout (no machine needed). Machine-specific
+  constants (steps/mm, origin, Y direction, terminator, init & cut-condition
+  commands) are parameters to confirm on the real cutter during cut tuning.
+- **Phase 2 — USB send + cut-condition tuning: not yet.**
   Target route: `usbipd-win` (USB/IP) to attach the cutter into WSL2, then send
   GP-GL from Python.
 
 ## Project layout
 
-```
+```text
 src/autocut/
   models.py      # Piece / Sheet / Placement / LayoutResult
   excel_io.py    # tolerant .xlsx reader (stdlib)
@@ -59,7 +67,9 @@ src/autocut/
   template.py    # blank fill-in template generator
   layout.py      # Shelf FFDH packer (swappable for rectpack later)
   svg_out.py     # SVG preview renderer
-  cli.py         # `template` / `pack` subcommands
+  gpgl.py        # GP-GL cut-path generation + offline round-trip self-check
+  cli.py         # `template` / `pack` / `gpgl` subcommands
+tests/           # stdlib unittest (no third-party deps)
 ```
 
 The layout and Excel-reader interfaces are kept separable so `rectpack` and
